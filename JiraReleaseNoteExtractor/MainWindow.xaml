@@ -9,8 +9,8 @@
         mc:Ignorable="d"
         Title="JIRA Release Note Extractor"
         FontSize="16"
-        Height="350"
-        Width="525">
+        Height="493"
+        Width="650">
   <Window.TaskbarItemInfo>
     <TaskbarItemInfo ProgressState="{Binding IsBusy, Converter={StaticResource TaskbarProgressStateConverter}}" />
   </Window.TaskbarItemInfo>
@@ -163,7 +163,7 @@
     </StackPanel>
 
     <ProgressBar DockPanel.Dock="Bottom"
-                 Height="15"
+                 Height="20"
                  Margin="5,2,5,5"
                  IsIndeterminate="{Binding IsBusy, Mode=OneWay}"
                  Visibility="{Binding IsBusy, Converter={StaticResource TrueToVisibleConverter}}" />
