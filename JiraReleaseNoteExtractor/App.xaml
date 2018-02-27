@@ -3,8 +3,38 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:JiraReleaseNoteExtractor"
              xmlns:ViewModels="clr-namespace:JiraReleaseNoteExtractor.ViewModels"
+             xmlns:Helpers="clr-namespace:JiraReleaseNoteExtractor.Helpers"
+             xmlns:System="clr-namespace:System;assembly=mscorlib"
              StartupUri="MainWindow.xaml">
   <Application.Resources>
     <ViewModels:ViewModelLocator x:Key="Locator" />
+
+    <Helpers:BooleanConverter x:Key="TaskbarProgressStateConverter">
+      <Helpers:BooleanConverter.TrueValue>
+        <TaskbarItemProgressState>Indeterminate</TaskbarItemProgressState>
+      </Helpers:BooleanConverter.TrueValue>
+      <Helpers:BooleanConverter.FalseValue>
+        <TaskbarItemProgressState>None</TaskbarItemProgressState>
+      </Helpers:BooleanConverter.FalseValue>
+    </Helpers:BooleanConverter>
+
+    <Helpers:BooleanConverter x:Key="InvertBooleanConverter">
+      <Helpers:BooleanConverter.TrueValue>
+        <System:Boolean>False</System:Boolean>
+      </Helpers:BooleanConverter.TrueValue>
+      <Helpers:BooleanConverter.FalseValue>
+        <System:Boolean>True</System:Boolean>
+      </Helpers:BooleanConverter.FalseValue>
+    </Helpers:BooleanConverter>
+
+    <Helpers:BooleanConverter x:Key="TrueToVisibleConverter">
+      <Helpers:BooleanConverter.TrueValue>
+        <Visibility>Visible</Visibility>
+      </Helpers:BooleanConverter.TrueValue>
+      <Helpers:BooleanConverter.FalseValue>
+        <Visibility>Collapsed</Visibility>
+      </Helpers:BooleanConverter.FalseValue>
+    </Helpers:BooleanConverter>
+
   </Application.Resources>
 </Application>

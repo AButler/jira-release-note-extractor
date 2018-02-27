@@ -8,9 +8,14 @@
         DataContext="{Binding MainWindow, Source={StaticResource Locator}}"
         mc:Ignorable="d"
         Title="JIRA Release Note Extractor"
+        FontSize="16"
         Height="350"
         Width="525">
-  <DockPanel>
+  <Window.TaskbarItemInfo>
+    <TaskbarItemInfo ProgressState="{Binding IsBusy, Converter={StaticResource TaskbarProgressStateConverter}}" />
+  </Window.TaskbarItemInfo>
+
+  <DockPanel IsEnabled="{Binding IsBusy, Mode=OneWay, Converter={StaticResource InvertBooleanConverter}}">
     <StackPanel DockPanel.Dock="Top">
       <GroupBox Header="Credentials"
                 Margin="5,2">
@@ -45,6 +50,7 @@
           <PasswordBox Helpers:PasswordHelper.Attach="True"
                        Helpers:PasswordHelper.Password="{Binding Password}"
                        Name="txtPassword"
+                       KeyDown="TxtPasswordOnKeyDown"
                        Margin="5,2"
                        Padding="2"
                        Grid.Column="1"
@@ -120,9 +126,21 @@
             <ComboBox.ItemTemplate>
               <DataTemplate>
                 <StackPanel>
-                  <TextBlock Text="{Binding Name}" />
-                  <TextBlock Text="{Binding Description}"
-                             Foreground="#999" />
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding Name}" />
+                    <Border Background="LawnGreen"
+                            CornerRadius="3"
+                            Margin="5,2"
+                            Padding="5,2"
+                            Visibility="{Binding IsReleased, Converter={StaticResource TrueToVisibleConverter}}">
+                      <TextBlock Text="Released"
+                                 FontSize="12" />
+                    </Border>
+                  </StackPanel>
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding Description}"
+                               Foreground="#999" />
+                  </StackPanel>
                 </StackPanel>
               </DataTemplate>
             </ComboBox.ItemTemplate>
@@ -144,7 +162,15 @@
       </GroupBox>
     </StackPanel>
 
+    <ProgressBar DockPanel.Dock="Bottom"
+                 Height="15"
+                 Margin="5,2,5,5"
+                 IsIndeterminate="{Binding IsBusy, Mode=OneWay}"
+                 Visibility="{Binding IsBusy, Converter={StaticResource TrueToVisibleConverter}}" />
+
     <TextBox Text="{Binding ResultsText, Mode=OneWay}"
+             FontFamily="Consolas"
+             FontSize="14"
              Margin="5"
              IsReadOnly="True" />
   </DockPanel>

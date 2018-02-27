@@ -20,6 +20,7 @@ namespace JiraReleaseNoteExtractor.ViewModels {
     private readonly string _releaseNoteFieldName;
     private string _releaseNoteFieldId;
 
+    private bool _isBusy;
     private string _username;
     private string _password;
     private bool _isConnected;
@@ -29,6 +30,11 @@ namespace JiraReleaseNoteExtractor.ViewModels {
     private string _selectedVersion;
     private string _versionSummary;
     private string _resultsText;
+
+    public bool IsBusy {
+      get => _isBusy;
+      set => Set( ref _isBusy, value );
+    }
 
     public string Username {
       get => _username;
@@ -108,18 +114,29 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       Settings.Default.LastProject = SelectedProject;
       Settings.Default.Save();
 
+      IsBusy = true;
+
       Versions = await GetVersions( SelectedProject );
 
       if ( Versions.Any( p => string.Equals( p.Id, Settings.Default.LastVersion, StringComparison.InvariantCultureIgnoreCase ) ) ) {
         SelectedVersion = Settings.Default.LastVersion;
       }
+
+      IsBusy = false;
     }
 
     private async Task OnSelectedVersionChanged() {
       Settings.Default.LastVersion = SelectedVersion;
       Settings.Default.Save();
 
+      IsBusy = true;
+
+      ResultsText = null;
       VersionSummary = await GetVersionSummary( SelectedVersion );
+
+      ExportCommand.RaiseCanExecuteChanged();
+
+      IsBusy = false;
     }
 
     private async void Connect() {
@@ -127,6 +144,8 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       Settings.Default.Save();
 
       _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue( "Basic", Convert.ToBase64String( Encoding.ASCII.GetBytes( $"{Username}:{Password}" ) ) );
+
+      IsBusy = true;
 
       _releaseNoteFieldId = await GetReleaseNoteFieldId();
       Projects = await GetProjects();
@@ -136,9 +155,12 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       }
 
       IsConnected = true;
+      IsBusy = false;
     }
 
     private async void Export() {
+      IsBusy = true;
+
       var query = Uri.EscapeDataString( $"fixVersion = {SelectedVersion} AND affectedVersion != {SelectedVersion} and status = Closed and resolution = Fixed ORDER BY key ASC" );
       var url = $"{_jiraBaseUrl}/rest/api/2/search?jql={query}";
       var response = await _httpClient.GetStringAsync( url );
@@ -152,13 +174,15 @@ namespace JiraReleaseNoteExtractor.ViewModels {
         var releaseNote = issueJson["fields"].Value<string>( _releaseNoteFieldId );
 
         if ( string.IsNullOrWhiteSpace( releaseNote ) ) {
-          releaseNote = "!!! NO RELEASE NOTE !!!";
+          releaseNote = $"!!! NO RELEASE NOTE: {_jiraBaseUrl}/browse/{key} !!!";
         }
 
         resultsText.AppendLine( $"  * {releaseNote} [{key}]" );
       }
 
       ResultsText = resultsText.ToString();
+
+      IsBusy = false;
     }
 
 
@@ -212,7 +236,7 @@ namespace JiraReleaseNoteExtractor.ViewModels {
         projects.Add( new ProjectVersion( id, name, description, isReleased, releaseDate ) );
       }
 
-      projects.Sort( ( v1, v2 ) => v1.ReleaseDate.CompareTo( v2.ReleaseDate ) );
+      projects.Sort( ( v1, v2 ) => v2.ReleaseDate.CompareTo( v1.ReleaseDate ) );
 
       return projects;
     }
