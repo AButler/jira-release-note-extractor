@@ -5,9 +5,10 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:JiraReleaseNoteExtractor"
         xmlns:Helpers="clr-namespace:JiraReleaseNoteExtractor.Helpers"
+        Background="WhiteSmoke"
         DataContext="{Binding MainWindow, Source={StaticResource Locator}}"
         mc:Ignorable="d"
-        Title="JIRA Release Note Extractor"
+        Title="JIRA Release Notes Extractor"
         FontSize="16"
         Height="493"
         Width="650">
@@ -150,23 +151,34 @@
                      Grid.Column="1"
                      Grid.Row="2" />
 
-          <Button Content="_Export"
-                  Command="{Binding ExportCommand}"
-                  HorizontalAlignment="Right"
-                  Margin="5,2"
-                  Padding="5,2"
-                  Grid.Column="0"
-                  Grid.Row="3"
-                  Grid.ColumnSpan="2" />
+          <StackPanel Orientation="Horizontal"
+                      HorizontalAlignment="Right"
+                      Grid.Column="0"
+                      Grid.Row="3"
+                      Grid.ColumnSpan="2">
+            <Button Content="_View Issues"
+                    Command="{Binding ViewIssuesCommand}"
+                    Margin="5,2"
+                    Padding="5,2" />
+          </StackPanel>
         </Grid>
       </GroupBox>
     </StackPanel>
 
-    <ProgressBar DockPanel.Dock="Bottom"
-                 Height="20"
-                 Margin="5,2,5,5"
-                 IsIndeterminate="{Binding IsBusy, Mode=OneWay}"
-                 Visibility="{Binding IsBusy, Converter={StaticResource TrueToVisibleConverter}}" />
+    <StackPanel DockPanel.Dock="Bottom">
+
+
+      <StatusBar>
+        <StatusBarItem Content="{Binding Version, Mode=OneWay}" />
+        <Separator />
+        <StatusBarItem>
+          <ProgressBar IsIndeterminate="{Binding IsBusy, Mode=OneWay}"
+                       Visibility="{Binding IsBusy, Converter={StaticResource TrueToVisibleConverter}}"
+                       Width="200"
+                       Height="15" />
+        </StatusBarItem>
+      </StatusBar>
+    </StackPanel>
 
     <TextBox Text="{Binding ResultsText, Mode=OneWay}"
              FontFamily="Consolas"

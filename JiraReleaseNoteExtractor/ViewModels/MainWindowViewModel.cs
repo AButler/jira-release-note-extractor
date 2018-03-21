@@ -2,9 +2,11 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Configuration;
+using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using GalaSoft.MvvmLight;
@@ -82,17 +84,21 @@ namespace JiraReleaseNoteExtractor.ViewModels {
     }
 
     public RelayCommand ConnectCommand { get; }
-    public RelayCommand ExportCommand { get; }
+    public RelayCommand ViewIssuesCommand { get; }
+
+    public string Version { get; }
 
     public MainWindowViewModel() {
+      Version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
+
       ConnectCommand = new RelayCommand( Connect, CanConnect );
-      ExportCommand = new RelayCommand( Export, CanExport );
+      ViewIssuesCommand = new RelayCommand( ViewIssues, CanViewIssues );
 
       _jiraBaseUrl = ConfigurationManager.AppSettings["JiraBaseUrl"];
       _releaseNoteFieldName = ConfigurationManager.AppSettings["ReleaseNoteFieldName"];
 
       Username = Settings.Default.LastUsername;
-      
+
       _httpClient = new HttpClient();
       _httpClient.DefaultRequestHeaders.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/json" ) );
 
@@ -133,8 +139,9 @@ namespace JiraReleaseNoteExtractor.ViewModels {
 
       ResultsText = null;
       VersionSummary = await GetVersionSummary( SelectedVersion );
+      ResultsText = await GenerateReleaseNotes();
 
-      ExportCommand.RaiseCanExecuteChanged();
+      ViewIssuesCommand.RaiseCanExecuteChanged();
 
       IsBusy = false;
     }
@@ -158,11 +165,9 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       IsBusy = false;
     }
 
-    private async void Export() {
-      IsBusy = true;
-
-      var query = Uri.EscapeDataString( $"fixVersion = {SelectedVersion} AND affectedVersion != {SelectedVersion} and status = Closed and resolution = Fixed ORDER BY key ASC" );
-      var url = $"{_jiraBaseUrl}/rest/api/2/search?jql={query}";
+    private async Task<string> GenerateReleaseNotes() {
+      var query = GetJiraJql();
+      var url = $"{_jiraBaseUrl}/rest/api/2/search?jql={Uri.EscapeDataString( query )}";
       var response = await _httpClient.GetStringAsync( url );
       var json = JObject.Parse( response );
 
@@ -180,11 +185,19 @@ namespace JiraReleaseNoteExtractor.ViewModels {
         resultsText.AppendLine( $"  * {releaseNote} [{key}]" );
       }
 
-      ResultsText = resultsText.ToString();
-
-      IsBusy = false;
+      return resultsText.ToString();
     }
 
+    private string GetJiraJql() {
+      return $"fixVersion = {SelectedVersion} AND ( affectedVersion is empty or affectedVersion != {SelectedVersion} ) and status = Closed and resolution = Fixed ORDER BY key ASC";
+    }
+
+    private void ViewIssues() {
+      var query = GetJiraJql();
+      var url = $"{_jiraBaseUrl}/issues/?jql={Uri.EscapeDataString( query )}";
+
+      Process.Start( new ProcessStartInfo( url ) { UseShellExecute =  true } );
+    }
 
     private async Task<string> GetReleaseNoteFieldId() {
       var url = $"{_jiraBaseUrl}/rest/api/2/field";
@@ -257,7 +270,7 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       return !string.IsNullOrWhiteSpace( Username ) && !string.IsNullOrEmpty( Password );
     }
 
-    private bool CanExport() {
+    private bool CanViewIssues() {
       return !string.IsNullOrEmpty( SelectedVersion );
     }
   }
