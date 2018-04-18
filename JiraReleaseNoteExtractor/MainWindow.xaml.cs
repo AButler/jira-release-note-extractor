@@ -1,4 +1,5 @@
-﻿using System.Windows.Input;
+﻿using System.Windows;
+using System.Windows.Input;
 using JiraReleaseNoteExtractor.ViewModels;
 
 namespace JiraReleaseNoteExtractor {
@@ -15,6 +16,15 @@ namespace JiraReleaseNoteExtractor {
       }
 
       ViewModel.ConnectCommand.Execute( null );
+    }
+
+    private void OnLoaded( object sender, RoutedEventArgs e ) {
+      if ( string.IsNullOrWhiteSpace( ViewModel.Username ) ) {
+        txtUsername.Focus();
+      }
+      else {
+        txtPassword.Focus();
+      }
     }
   }
 }

@@ -9,6 +9,8 @@ using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Threading;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.CommandWpf;
 using JiraReleaseNoteExtractor.Models;
@@ -23,6 +25,7 @@ namespace JiraReleaseNoteExtractor.ViewModels {
     private string _releaseNoteFieldId;
 
     private bool _isBusy;
+    private string _message;
     private string _username;
     private string _password;
     private bool _isConnected;
@@ -31,11 +34,16 @@ namespace JiraReleaseNoteExtractor.ViewModels {
     private ICollection<ProjectVersion> _versions;
     private string _selectedVersion;
     private string _versionSummary;
-    private string _resultsText;
+    private string _releaseNotesText;
+    private string _epicText;
 
     public bool IsBusy {
       get => _isBusy;
       set => Set( ref _isBusy, value );
+    }
+    public string Message {
+      get => _message;
+      set => Set( ref _message, value );
     }
 
     public string Username {
@@ -78,21 +86,32 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       set => Set( ref _versionSummary, value );
     }
 
-    public string ResultsText {
-      get => _resultsText;
-      set => Set( ref _resultsText, value );
+    public string ReleaseNotesText {
+      get => _releaseNotesText;
+      set => Set( ref _releaseNotesText, value );
+    }
+
+    public string EpicText {
+      get => _epicText;
+      set => Set( ref _epicText, value );
     }
 
     public RelayCommand ConnectCommand { get; }
     public RelayCommand ViewIssuesCommand { get; }
+    public RelayCommand ViewEpicsCommand { get; }
+    public RelayCommand<string> CopyCommand { get; }
 
     public string Version { get; }
 
     public MainWindowViewModel() {
       Version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>().InformationalVersion;
+      Message = "Ready";
+      VersionSummary = "(Select a version)";
 
       ConnectCommand = new RelayCommand( Connect, CanConnect );
-      ViewIssuesCommand = new RelayCommand( ViewIssues, CanViewIssues );
+      ViewIssuesCommand = new RelayCommand( ViewIssues, HasSelectedVersion );
+      ViewEpicsCommand = new RelayCommand( ViewEpics, HasSelectedVersion );
+      CopyCommand = new RelayCommand<string>( CopyText, CanCopyText );
 
       _jiraBaseUrl = ConfigurationManager.AppSettings["JiraBaseUrl"];
       _releaseNoteFieldName = ConfigurationManager.AppSettings["ReleaseNoteFieldName"];
@@ -121,6 +140,7 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       Settings.Default.Save();
 
       IsBusy = true;
+      Message = "Retrieving versions...";
 
       Versions = await GetVersions( SelectedProject );
 
@@ -129,6 +149,7 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       }
 
       IsBusy = false;
+      Message = "Ready";
     }
 
     private async Task OnSelectedVersionChanged() {
@@ -136,14 +157,26 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       Settings.Default.Save();
 
       IsBusy = true;
+      Message = "Generating release notes...";
 
-      ResultsText = null;
-      VersionSummary = await GetVersionSummary( SelectedVersion );
-      ResultsText = await GenerateReleaseNotes();
+      ReleaseNotesText = null;
+
+      var versionSummaryTask = GetVersionSummary();
+      var releaseNotesTask = GenerateReleaseNotes();
+      var epicTask = GenerateEpicText();
+
+      await Task.WhenAll( versionSummaryTask, releaseNotesTask, epicTask );
+
+      VersionSummary = versionSummaryTask.Result;
+      ReleaseNotesText = releaseNotesTask.Result;
+      EpicText = epicTask.Result;
 
       ViewIssuesCommand.RaiseCanExecuteChanged();
+      ViewEpicsCommand.RaiseCanExecuteChanged();
+      CopyCommand.RaiseCanExecuteChanged();
 
       IsBusy = false;
+      Message = "Ready";
     }
 
     private async void Connect() {
@@ -153,9 +186,15 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue( "Basic", Convert.ToBase64String( Encoding.ASCII.GetBytes( $"{Username}:{Password}" ) ) );
 
       IsBusy = true;
+      Message = "Connecting...";
 
-      _releaseNoteFieldId = await GetReleaseNoteFieldId();
-      Projects = await GetProjects();
+      var releaseNoteFieldTask = GetReleaseNoteFieldId();
+      var projectsTask = GetProjects();
+
+      await Task.WhenAll( releaseNoteFieldTask, projectsTask );
+
+      _releaseNoteFieldId = releaseNoteFieldTask.Result;
+      Projects = projectsTask.Result;
 
       if ( Projects.Any( p => string.Equals( p.Id, Settings.Default.LastProject, StringComparison.InvariantCultureIgnoreCase ) ) ) {
         SelectedProject = Settings.Default.LastProject;
@@ -163,10 +202,11 @@ namespace JiraReleaseNoteExtractor.ViewModels {
 
       IsConnected = true;
       IsBusy = false;
+      Message = "Connected";
     }
 
     private async Task<string> GenerateReleaseNotes() {
-      var query = GetJiraJql();
+      var query = GetReleaseNotesJiraJql();
       var url = $"{_jiraBaseUrl}/rest/api/2/search?jql={Uri.EscapeDataString( query )}";
       var response = await _httpClient.GetStringAsync( url );
       var json = JObject.Parse( response );
@@ -188,15 +228,49 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       return resultsText.ToString();
     }
 
-    private string GetJiraJql() {
-      return $"fixVersion = {SelectedVersion} AND ( affectedVersion is empty or affectedVersion != {SelectedVersion} ) and status = Closed and resolution = Fixed ORDER BY key ASC";
+    private async Task<string> GenerateEpicText() {
+      var query = GetEpicsJiraJql();
+      var url = $"{_jiraBaseUrl}/rest/api/2/search?jql={Uri.EscapeDataString( query )}";
+      var response = await _httpClient.GetStringAsync( url );
+      var json = JObject.Parse( response );
+
+      var resultsText = new StringBuilder( "### Epics\r\n\r\n" );
+
+      foreach ( var issueJson in json["issues"] ) {
+        var id = issueJson.Value<string>( "id" );
+        var key = issueJson.Value<string>( "key" );
+        var releaseNote = issueJson["fields"].Value<string>( _releaseNoteFieldId );
+
+        if ( string.IsNullOrWhiteSpace( releaseNote ) ) {
+          releaseNote = $"!!! NO RELEASE NOTE: {_jiraBaseUrl}/browse/{key} !!! [{key}]";
+        }
+
+        resultsText.AppendLine( $"  * {releaseNote}" );
+      }
+
+      return resultsText.ToString();
+    }
+
+    private string GetReleaseNotesJiraJql() {
+      return $"fixVersion = {SelectedVersion} AND ( affectedVersion is empty or affectedVersion != {SelectedVersion} ) and type != Epic and \"Epic Link\" is empty and status = Closed and resolution = Fixed ORDER BY key ASC";
+    }
+
+    private string GetEpicsJiraJql() {
+      return $"fixVersion = {SelectedVersion} AND ( affectedVersion is empty or affectedVersion != {SelectedVersion} ) and type = Epic and status = Closed and resolution = Fixed ORDER BY key ASC";
     }
 
     private void ViewIssues() {
-      var query = GetJiraJql();
+      var query = GetReleaseNotesJiraJql();
       var url = $"{_jiraBaseUrl}/issues/?jql={Uri.EscapeDataString( query )}";
 
-      Process.Start( new ProcessStartInfo( url ) { UseShellExecute =  true } );
+      Process.Start( new ProcessStartInfo( url ) { UseShellExecute = true } );
+    }
+
+    private void ViewEpics() {
+      var query = GetEpicsJiraJql();
+      var url = $"{_jiraBaseUrl}/issues/?jql={Uri.EscapeDataString( query )}";
+
+      Process.Start( new ProcessStartInfo( url ) { UseShellExecute = true } );
     }
 
     private async Task<string> GetReleaseNoteFieldId() {
@@ -254,8 +328,8 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       return projects;
     }
 
-    private async Task<string> GetVersionSummary( string versionId ) {
-      var url = $"{_jiraBaseUrl}/rest/api/2/version/{versionId}/unresolvedIssueCount";
+    private async Task<string> GetVersionSummary() {
+      var url = $"{_jiraBaseUrl}/rest/api/2/version/{SelectedVersion}/unresolvedIssueCount";
 
       var response = await _httpClient.GetStringAsync( url );
       var json = JObject.Parse( response );
@@ -270,8 +344,16 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       return !string.IsNullOrWhiteSpace( Username ) && !string.IsNullOrEmpty( Password );
     }
 
-    private bool CanViewIssues() {
+    private bool HasSelectedVersion() {
       return !string.IsNullOrEmpty( SelectedVersion );
+    }
+
+    private void CopyText( string text ) {
+      Clipboard.SetText( text, TextDataFormat.Text );
+      Message = "Copied";
+    }
+    private bool CanCopyText( string text ) {
+      return !string.IsNullOrEmpty( text );
     }
   }
 }

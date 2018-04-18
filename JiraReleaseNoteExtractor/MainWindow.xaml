@@ -9,167 +9,160 @@
         DataContext="{Binding MainWindow, Source={StaticResource Locator}}"
         mc:Ignorable="d"
         Title="JIRA Release Notes Extractor"
+        Loaded="OnLoaded"
         FontSize="16"
-        Height="493"
-        Width="650">
+        Height="700"
+        Width="850">
   <Window.TaskbarItemInfo>
     <TaskbarItemInfo ProgressState="{Binding IsBusy, Converter={StaticResource TaskbarProgressStateConverter}}" />
   </Window.TaskbarItemInfo>
 
   <DockPanel IsEnabled="{Binding IsBusy, Mode=OneWay, Converter={StaticResource InvertBooleanConverter}}">
-    <StackPanel DockPanel.Dock="Top">
-      <GroupBox Header="Credentials"
+    <StackPanel DockPanel.Dock="Top"
                 Margin="5,2">
-        <Grid>
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="*" />
-          </Grid.ColumnDefinitions>
-          <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-          </Grid.RowDefinitions>
+      <Label Content="Credentials"
+             FontWeight="Bold" />
 
-          <Label Content="Username:"
-                 Target="{Binding ElementName=txtUsername}"
-                 Grid.Column="0"
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Label Content="_Username:"
+               Target="{Binding ElementName=txtUsername}"
+               Grid.Column="0"
+               Grid.Row="0" />
+
+        <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
+                 Name="txtUsername"
+                 Margin="5,2"
+                 Padding="2"
+                 Grid.Column="1"
                  Grid.Row="0" />
 
-          <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
-                   Name="txtUsername"
-                   Margin="5,2"
-                   Padding="2"
-                   Grid.Column="1"
-                   Grid.Row="0" />
+        <Label Content="P_assword:"
+               Target="{Binding ElementName=txtPassword}"
+               Grid.Column="0"
+               Grid.Row="1" />
 
-          <Label Content="Password:"
-                 Target="{Binding ElementName=txtPassword}"
-                 Grid.Column="0"
-                 Grid.Row="1" />
+        <PasswordBox Helpers:PasswordHelper.Attach="True"
+                     Helpers:PasswordHelper.Password="{Binding Password}"
+                     Name="txtPassword"
+                     KeyDown="TxtPasswordOnKeyDown"
+                     Margin="5,2"
+                     Padding="2"
+                     Grid.Column="1"
+                     Grid.Row="1" />
 
-          <PasswordBox Helpers:PasswordHelper.Attach="True"
-                       Helpers:PasswordHelper.Password="{Binding Password}"
-                       Name="txtPassword"
-                       KeyDown="TxtPasswordOnKeyDown"
-                       Margin="5,2"
-                       Padding="2"
-                       Grid.Column="1"
-                       Grid.Row="1" />
+        <Button Content="_Connect"
+                Command="{Binding ConnectCommand}"
+                HorizontalAlignment="Right"
+                Margin="5,2"
+                Padding="5,2"
+                Grid.Column="0"
+                Grid.Row="2"
+                Grid.ColumnSpan="2" />
+      </Grid>
 
-          <Button Content="_Connect"
-                  Command="{Binding ConnectCommand}"
-                  HorizontalAlignment="Right"
+      <Label Content="Project Versions"
+             FontWeight="Bold" />
+
+      <Grid IsEnabled="{Binding IsConnected, Mode=OneWay}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Label Content="_Project:"
+               Target="{Binding ElementName=ddlProject}"
+               Grid.Column="0"
+               Grid.Row="0" />
+
+        <ComboBox SelectedValue="{Binding SelectedProject}"
+                  ItemsSource="{Binding Projects, Mode=OneWay}"
+                  SelectedValuePath="Id"
+                  IsEditable="false"
+                  Name="ddlProject"
                   Margin="5,2"
                   Padding="5,2"
-                  Grid.Column="0"
-                  Grid.Row="2"
-                  Grid.ColumnSpan="2" />
-        </Grid>
-      </GroupBox>
+                  MinHeight="40"
+                  Grid.Column="1"
+                  Grid.Row="0">
+          <ComboBox.ItemTemplate>
+            <DataTemplate>
+              <StackPanel>
+                <TextBlock Text="{Binding Name}" />
+                <TextBlock Text="{Binding Key}"
+                           FontSize="12"
+                           Foreground="#999" />
+              </StackPanel>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
 
-      <GroupBox Header="Project Versions"
-                IsEnabled="{Binding IsConnected, Mode=OneWay}"
-                Margin="5,2">
-        <Grid>
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="*" />
-          </Grid.ColumnDefinitions>
-          <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-          </Grid.RowDefinitions>
+        <Label Content="_Version:"
+               Target="{Binding ElementName=ddlVersion}"
+               Grid.Column="0"
+               Grid.Row="1" />
 
-          <Label Content="Project:"
-                 Target="{Binding ElementName=ddlProject}"
-                 Grid.Column="0"
-                 Grid.Row="0" />
-
-          <ComboBox SelectedValue="{Binding SelectedProject}"
-                    ItemsSource="{Binding Projects, Mode=OneWay}"
-                    SelectedValuePath="Id"
-                    IsEditable="false"
-                    Name="ddlProject"
-                    Margin="5,2"
-                    Padding="5,2"
-                    MinHeight="30"
-                    Grid.Column="1"
-                    Grid.Row="0">
-            <ComboBox.ItemTemplate>
-              <DataTemplate>
-                <StackPanel>
+        <ComboBox SelectedValue="{Binding SelectedVersion}"
+                  ItemsSource="{Binding Versions, Mode=OneWay}"
+                  SelectedValuePath="Id"
+                  Name="ddlVersion"
+                  IsEditable="False"
+                  Margin="5,2"
+                  Padding="5,2"
+                  MinHeight="40"
+                  Grid.Column="1"
+                  Grid.Row="1">
+          <ComboBox.ItemTemplate>
+            <DataTemplate>
+              <StackPanel>
+                <StackPanel Orientation="Horizontal">
                   <TextBlock Text="{Binding Name}" />
-                  <TextBlock Text="{Binding Key}"
+                  <Border Background="LawnGreen"
+                          CornerRadius="3"
+                          Margin="5,2"
+                          Padding="5,2"
+                          Visibility="{Binding IsReleased, Converter={StaticResource TrueToVisibleConverter}}">
+                    <TextBlock Text="Released"
+                               FontSize="12" />
+                  </Border>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="{Binding Description}"
+                             FontSize="12"
                              Foreground="#999" />
                 </StackPanel>
-              </DataTemplate>
-            </ComboBox.ItemTemplate>
-          </ComboBox>
+              </StackPanel>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
 
-          <Label Content="Version:"
-                 Target="{Binding ElementName=ddlVersion}"
-                 Grid.Column="0"
-                 Grid.Row="1" />
-
-          <ComboBox SelectedValue="{Binding SelectedVersion}"
-                    ItemsSource="{Binding Versions, Mode=OneWay}"
-                    SelectedValuePath="Id"
-                    Name="ddlVersion"
-                    IsEditable="False"
-                    Margin="5,2"
-                    Padding="5,2"
-                    MinHeight="30"
-                    Grid.Column="1"
-                    Grid.Row="1">
-            <ComboBox.ItemTemplate>
-              <DataTemplate>
-                <StackPanel>
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="{Binding Name}" />
-                    <Border Background="LawnGreen"
-                            CornerRadius="3"
-                            Margin="5,2"
-                            Padding="5,2"
-                            Visibility="{Binding IsReleased, Converter={StaticResource TrueToVisibleConverter}}">
-                      <TextBlock Text="Released"
-                                 FontSize="12" />
-                    </Border>
-                  </StackPanel>
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="{Binding Description}"
-                               Foreground="#999" />
-                  </StackPanel>
-                </StackPanel>
-              </DataTemplate>
-            </ComboBox.ItemTemplate>
-          </ComboBox>
-
-          <TextBlock Text="{Binding VersionSummary, Mode=OneWay}"
-                     Grid.Column="1"
-                     Grid.Row="2" />
-
-          <StackPanel Orientation="Horizontal"
-                      HorizontalAlignment="Right"
-                      Grid.Column="0"
-                      Grid.Row="3"
-                      Grid.ColumnSpan="2">
-            <Button Content="_View Issues"
-                    Command="{Binding ViewIssuesCommand}"
-                    Margin="5,2"
-                    Padding="5,2" />
-          </StackPanel>
-        </Grid>
-      </GroupBox>
+        <TextBlock Text="{Binding VersionSummary, Mode=OneWay}"
+                   Foreground="Gray"
+                   Margin="5,2"
+                   Grid.Column="1"
+                   Grid.Row="2" />
+      </Grid>
     </StackPanel>
 
     <StackPanel DockPanel.Dock="Bottom">
-
-
       <StatusBar>
         <StatusBarItem Content="{Binding Version, Mode=OneWay}" />
+        <Separator />
+        <StatusBarItem Content="{Binding Message, Mode=OneWay, FallbackValue=Ready}" />
         <Separator />
         <StatusBarItem>
           <ProgressBar IsIndeterminate="{Binding IsBusy, Mode=OneWay}"
@@ -180,10 +173,104 @@
       </StatusBar>
     </StackPanel>
 
-    <TextBox Text="{Binding ResultsText, Mode=OneWay}"
-             FontFamily="Consolas"
-             FontSize="14"
-             Margin="5"
-             IsReadOnly="True" />
+    <Grid Margin="5,2">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="2*"
+                       MinHeight="50" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*"
+                       MinHeight="50" />
+      </Grid.RowDefinitions>
+
+      <Grid Grid.Row="0">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Orientation="Horizontal"
+                    Grid.Row="0">
+          <Label Content="_Issues"
+                 FontWeight="Bold"
+                 Target="{Binding ElementName=txtIssues}" />
+
+          <TextBlock VerticalAlignment="Center"
+                     FontSize="12"
+                     Margin="5,4,5,2">
+            <Hyperlink Command="{Binding ViewIssuesCommand}">View Issues</Hyperlink>
+          </TextBlock>
+
+          <TextBlock Text="|"
+                     VerticalAlignment="Center"
+                     FontSize="12"
+                     Margin="0,4,0,2" />
+
+          <TextBlock VerticalAlignment="Center"
+                     FontSize="12"
+                     Margin="5,4,5,2">
+            <Hyperlink Command="{Binding CopyCommand}"
+                       CommandParameter="{Binding ReleaseNotesText}">Copy</Hyperlink>
+          </TextBlock>
+        </StackPanel>
+
+        <TextBox Text="{Binding ReleaseNotesText, Mode=OneWay}"
+                 VerticalScrollBarVisibility="Auto"
+                 Name="txtIssues"
+                 FontFamily="Consolas"
+                 FontSize="14"
+                 Margin="5"
+                 IsReadOnly="True"
+                 Grid.Row="1" />
+      </Grid>
+
+      <GridSplitter Height="5"
+                    Background="Silver"
+                    VerticalAlignment="Top"
+                    HorizontalAlignment="Stretch"
+                    ResizeDirection="Rows"
+                    ResizeBehavior="PreviousAndNext"
+                    Grid.Row="1" />
+
+      <Grid Grid.Row="2">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Orientation="Horizontal"
+                    Grid.Row="0">
+          <Label Content="_Epics"
+                 FontWeight="Bold"
+                 Target="{Binding ElementName=txtEpics}" />
+
+          <TextBlock VerticalAlignment="Center"
+                     FontSize="12"
+                     Margin="5,4,5,2">
+            <Hyperlink Command="{Binding ViewEpicsCommand}">View Epics</Hyperlink>
+          </TextBlock>
+
+          <TextBlock Text="|"
+                     VerticalAlignment="Center"
+                     FontSize="12"
+                     Margin="0,4,0,2" />
+
+          <TextBlock VerticalAlignment="Center"
+                     FontSize="12"
+                     Margin="5,4,5,2">
+            <Hyperlink Command="{Binding CopyCommand}"
+                       CommandParameter="{Binding EpicText}">Copy</Hyperlink>
+          </TextBlock>
+        </StackPanel>
+
+        <TextBox Text="{Binding EpicText, Mode=OneWay}"
+                 VerticalScrollBarVisibility="Auto"
+                 Name="txtEpics"
+                 FontFamily="Consolas"
+                 FontSize="14"
+                 Margin="5"
+                 IsReadOnly="True"
+                 Grid.Row="1" />
+      </Grid>
+    </Grid>
   </DockPanel>
 </Window>
