@@ -99,6 +99,8 @@ namespace JiraReleaseNoteExtractor.ViewModels {
     public RelayCommand ConnectCommand { get; }
     public RelayCommand ViewIssuesCommand { get; }
     public RelayCommand ViewEpicsCommand { get; }
+    public RelayCommand RefreshIssuesCommand { get; }
+    public RelayCommand RefreshEpicsCommand { get; }
     public RelayCommand<string> CopyCommand { get; }
 
     public string Version { get; }
@@ -111,6 +113,8 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       ConnectCommand = new RelayCommand( Connect, CanConnect );
       ViewIssuesCommand = new RelayCommand( ViewIssues, HasSelectedVersion );
       ViewEpicsCommand = new RelayCommand( ViewEpics, HasSelectedVersion );
+      RefreshIssuesCommand = new RelayCommand( RefreshIssues, HasSelectedVersion );
+      RefreshEpicsCommand = new RelayCommand( RefreshEpics, HasSelectedVersion );
       CopyCommand = new RelayCommand<string>( CopyText, CanCopyText );
 
       _jiraBaseUrl = ConfigurationManager.AppSettings["JiraBaseUrl"];
@@ -156,27 +160,7 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       Settings.Default.LastVersion = SelectedVersion;
       Settings.Default.Save();
 
-      IsBusy = true;
-      Message = "Generating release notes...";
-
-      ReleaseNotesText = null;
-
-      var versionSummaryTask = GetVersionSummary();
-      var releaseNotesTask = GenerateReleaseNotes();
-      var epicTask = GenerateEpicText();
-
-      await Task.WhenAll( versionSummaryTask, releaseNotesTask, epicTask );
-
-      VersionSummary = versionSummaryTask.Result;
-      ReleaseNotesText = releaseNotesTask.Result;
-      EpicText = epicTask.Result;
-
-      ViewIssuesCommand.RaiseCanExecuteChanged();
-      ViewEpicsCommand.RaiseCanExecuteChanged();
-      CopyCommand.RaiseCanExecuteChanged();
-
-      IsBusy = false;
-      Message = "Ready";
+      await Refresh( true, true );
     }
 
     private async void Connect() {
@@ -252,11 +236,11 @@ namespace JiraReleaseNoteExtractor.ViewModels {
     }
 
     private string GetReleaseNotesJiraJql() {
-      return $"fixVersion = {SelectedVersion} AND ( affectedVersion is empty or affectedVersion != {SelectedVersion} ) and type != Epic and \"Epic Link\" is empty and status = Closed and resolution = Fixed ORDER BY key ASC";
+      return $"fixVersion = {SelectedVersion} AND ( affectedVersion is empty or affectedVersion != {SelectedVersion} ) and type != Epic and \"Epic Link\" is empty and status = Closed and resolution in (Fixed,Done) ORDER BY key ASC";
     }
 
     private string GetEpicsJiraJql() {
-      return $"fixVersion = {SelectedVersion} AND ( affectedVersion is empty or affectedVersion != {SelectedVersion} ) and type = Epic and status = Closed and resolution = Fixed ORDER BY key ASC";
+      return $"fixVersion = {SelectedVersion} AND ( affectedVersion is empty or affectedVersion != {SelectedVersion} ) and type = Epic and status = Closed and resolution in (Fixed,Done) ORDER BY key ASC";
     }
 
     private void ViewIssues() {
@@ -271,6 +255,61 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       var url = $"{_jiraBaseUrl}/issues/?jql={Uri.EscapeDataString( query )}";
 
       Process.Start( new ProcessStartInfo( url ) { UseShellExecute = true } );
+    }
+
+    private async void RefreshIssues() {
+      await Refresh( true, false );
+    }
+
+    private async void RefreshEpics() {
+      await Refresh( false, true );
+    }
+
+    private async Task Refresh( bool refreshIssues, bool refreshEpics ) {
+      if ( !refreshIssues && !refreshEpics ) {
+        return;
+      }
+
+      if ( SelectedVersion == null ) {
+        VersionSummary = null;
+        ReleaseNotesText = null;
+        EpicText = null;
+        return;
+      }
+
+      IsBusy = true;
+      Message = refreshIssues ? "Generating release notes..." : "Retrieving epics...";
+
+      if ( refreshIssues ) {
+        ReleaseNotesText = null;
+      }
+
+      if ( refreshEpics ) {
+        EpicText = null;
+      }
+
+      var versionSummaryTask = GetVersionSummary();
+      var releaseNotesTask = refreshIssues ? GenerateReleaseNotes() : null;
+      var epicTask = refreshEpics ? GenerateEpicText() : null;
+
+      await Task.WhenAll( new[] { versionSummaryTask, releaseNotesTask, epicTask }.Where( t => t != null ) );
+
+      VersionSummary = versionSummaryTask.Result;
+
+      if ( refreshIssues ) {
+        ReleaseNotesText = releaseNotesTask.Result;
+      }
+
+      if ( refreshEpics ) {
+        EpicText = epicTask.Result;
+      }
+
+      ViewIssuesCommand.RaiseCanExecuteChanged();
+      ViewEpicsCommand.RaiseCanExecuteChanged();
+      CopyCommand.RaiseCanExecuteChanged();
+
+      IsBusy = false;
+      Message = "Ready";
     }
 
     private async Task<string> GetReleaseNoteFieldId() {

@@ -211,6 +211,17 @@
             <Hyperlink Command="{Binding CopyCommand}"
                        CommandParameter="{Binding ReleaseNotesText}">Copy</Hyperlink>
           </TextBlock>
+          
+          <TextBlock Text="|"
+                     VerticalAlignment="Center"
+                     FontSize="12"
+                     Margin="0,4,0,2" />
+
+          <TextBlock VerticalAlignment="Center"
+                     FontSize="12"
+                     Margin="5,4,5,2">
+            <Hyperlink Command="{Binding RefreshIssuesCommand}">Refresh</Hyperlink>
+          </TextBlock>
         </StackPanel>
 
         <TextBox Text="{Binding ReleaseNotesText, Mode=OneWay}"
@@ -259,6 +270,17 @@
                      Margin="5,4,5,2">
             <Hyperlink Command="{Binding CopyCommand}"
                        CommandParameter="{Binding EpicText}">Copy</Hyperlink>
+          </TextBlock>
+          
+          <TextBlock Text="|"
+                     VerticalAlignment="Center"
+                     FontSize="12"
+                     Margin="0,4,0,2" />
+
+          <TextBlock VerticalAlignment="Center"
+                     FontSize="12"
+                     Margin="5,4,5,2">
+            <Hyperlink Command="{Binding RefreshEpicsCommand}">Refresh</Hyperlink>
           </TextBlock>
         </StackPanel>
 
