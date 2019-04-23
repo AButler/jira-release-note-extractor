@@ -34,40 +34,54 @@
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Label Content="_Username:"
-               Target="{Binding ElementName=txtUsername}"
+        <Label Content="_Email:"
+               Target="{Binding ElementName=txtEmail}"
                Grid.Column="0"
                Grid.Row="0" />
 
-        <TextBox Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
-                 Name="txtUsername"
+        <TextBox Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}"
+                 Name="txtEmail"
                  Margin="5,2"
                  Padding="2"
                  Grid.Column="1"
                  Grid.Row="0" />
 
-        <Label Content="P_assword:"
-               Target="{Binding ElementName=txtPassword}"
+        <Label Content="_API Token:"
+               Target="{Binding ElementName=txtApiToken}"
                Grid.Column="0"
                Grid.Row="1" />
 
         <PasswordBox Helpers:PasswordHelper.Attach="True"
-                     Helpers:PasswordHelper.Password="{Binding Password}"
-                     Name="txtPassword"
+                     Helpers:PasswordHelper.Password="{Binding ApiToken}"
+                     Name="txtApiToken"
                      KeyDown="TxtPasswordOnKeyDown"
                      Margin="5,2"
                      Padding="2"
                      Grid.Column="1"
                      Grid.Row="1" />
 
-        <Button Content="_Connect"
-                Command="{Binding ConnectCommand}"
-                HorizontalAlignment="Right"
-                Margin="5,2"
-                Padding="5,2"
-                Grid.Column="0"
-                Grid.Row="2"
-                Grid.ColumnSpan="2" />
+        <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Grid.Column="0"
+                    Grid.Row="2"
+                    Grid.ColumnSpan="2">
+
+          <TextBlock VerticalAlignment="Center"
+                     FontSize="12"
+                     Margin="5,2">
+            <TextBlock.Inlines>
+              <Hyperlink Command="{Binding GenerateApiTokenCommand}">
+                <Run Text="Generate API Token..." />
+              </Hyperlink>
+            </TextBlock.Inlines>
+          </TextBlock>
+
+          <Button Content="_Connect"
+                  Command="{Binding ConnectCommand}"
+                  Margin="5,2"
+                  Padding="5,2" />
+
+        </StackPanel>
       </Grid>
 
       <Label Content="Project Versions"
@@ -94,6 +108,7 @@
                   SelectedValuePath="Id"
                   IsEditable="false"
                   Name="ddlProject"
+                  AlternationCount="2"
                   Margin="5,2"
                   Padding="5,2"
                   MinHeight="40"
@@ -101,14 +116,46 @@
                   Grid.Row="0">
           <ComboBox.ItemTemplate>
             <DataTemplate>
-              <StackPanel>
-                <TextBlock Text="{Binding Name}" />
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Image Source="{Binding Icon}"
+                       Width="48"
+                       Height="48"
+                       Margin="5,2"
+                       Grid.Column="0"
+                       Grid.Row="0"
+                       Grid.RowSpan="2" />
+
+                <TextBlock Text="{Binding Name}"
+                           Grid.Column="1"
+                           Grid.Row="0" />
                 <TextBlock Text="{Binding Key}"
                            FontSize="12"
-                           Foreground="#999" />
-              </StackPanel>
+                           Foreground="#999"
+                           Grid.Column="1"
+                           Grid.Row="1" />
+              </Grid>
             </DataTemplate>
           </ComboBox.ItemTemplate>
+          <ComboBox.ItemContainerStyle>
+            <Style TargetType="{x:Type ComboBoxItem}">
+              <Style.Triggers>
+                <Trigger Property="ItemsControl.AlternationIndex"
+                         Value="0">
+                  <Setter Property="Background"
+                          Value="WhiteSmoke" />
+                </Trigger>
+              </Style.Triggers>
+            </Style>
+          </ComboBox.ItemContainerStyle>
         </ComboBox>
 
         <Label Content="_Version:"
@@ -197,7 +244,7 @@
           <TextBlock VerticalAlignment="Center"
                      FontSize="12"
                      Margin="5,4,5,2">
-            <Hyperlink Command="{Binding ViewIssuesCommand}">View Issues</Hyperlink>
+            <Hyperlink Command="{Binding ViewIssuesCommand}">View Issues...</Hyperlink>
           </TextBlock>
 
           <TextBlock Text="|"
@@ -211,7 +258,7 @@
             <Hyperlink Command="{Binding CopyCommand}"
                        CommandParameter="{Binding ReleaseNotesText}">Copy</Hyperlink>
           </TextBlock>
-          
+
           <TextBlock Text="|"
                      VerticalAlignment="Center"
                      FontSize="12"
@@ -257,7 +304,7 @@
           <TextBlock VerticalAlignment="Center"
                      FontSize="12"
                      Margin="5,4,5,2">
-            <Hyperlink Command="{Binding ViewEpicsCommand}">View Epics</Hyperlink>
+            <Hyperlink Command="{Binding ViewEpicsCommand}">View Epics...</Hyperlink>
           </TextBlock>
 
           <TextBlock Text="|"
@@ -271,7 +318,7 @@
             <Hyperlink Command="{Binding CopyCommand}"
                        CommandParameter="{Binding EpicText}">Copy</Hyperlink>
           </TextBlock>
-          
+
           <TextBlock Text="|"
                      VerticalAlignment="Center"
                      FontSize="12"

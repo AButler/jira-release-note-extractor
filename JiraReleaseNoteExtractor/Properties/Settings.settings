@@ -2,13 +2,16 @@
 <SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="JiraReleaseNoteExtractor.Properties" GeneratedClassName="Settings">
   <Profiles />
   <Settings>
-    <Setting Name="LastUsername" Type="System.String" Scope="User">
+    <Setting Name="LastEmail" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
     <Setting Name="LastProject" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
     <Setting Name="LastVersion" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="LastApiToken" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
   </Settings>

@@ -19,11 +19,17 @@ namespace JiraReleaseNoteExtractor {
     }
 
     private void OnLoaded( object sender, RoutedEventArgs e ) {
-      if ( string.IsNullOrWhiteSpace( ViewModel.Username ) ) {
-        txtUsername.Focus();
+      var hasEmail = !string.IsNullOrWhiteSpace( ViewModel.Email );
+      var hasApiToken = !string.IsNullOrWhiteSpace( ViewModel.ApiToken );
+      
+      if ( !hasEmail ) {
+        txtEmail.Focus();
+      }
+      else if( !hasApiToken ) {
+        txtApiToken.Focus();
       }
       else {
-        txtPassword.Focus();
+        ViewModel.ConnectCommand.Execute( null );
       }
     }
   }

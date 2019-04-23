@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Configuration;
 using System.Diagnostics;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -10,24 +12,26 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Threading;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.CommandWpf;
+using JiraReleaseNoteExtractor.Helpers;
 using JiraReleaseNoteExtractor.Models;
 using JiraReleaseNoteExtractor.Properties;
 using Newtonsoft.Json.Linq;
+using Svg;
 
 namespace JiraReleaseNoteExtractor.ViewModels {
   internal class MainWindowViewModel: ViewModelBase {
     private readonly HttpClient _httpClient;
-    private readonly string _jiraBaseUrl;
+    private readonly JiraUriBuilder _uriBuilder;
+    private readonly string _baseIconPath;
     private readonly string _releaseNoteFieldName;
     private string _releaseNoteFieldId;
 
     private bool _isBusy;
     private string _message;
-    private string _username;
-    private string _password;
+    private string _email;
+    private string _apiToken;
     private bool _isConnected;
     private ICollection<Project> _projects;
     private string _selectedProject;
@@ -46,14 +50,14 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       set => Set( ref _message, value );
     }
 
-    public string Username {
-      get => _username;
-      set => Set( ref _username, value );
+    public string Email {
+      get => _email;
+      set => Set( ref _email, value );
     }
 
-    public string Password {
-      get => _password;
-      set => Set( ref _password, value );
+    public string ApiToken {
+      get => _apiToken;
+      set => Set( ref _apiToken, value );
     }
 
     public bool IsConnected {
@@ -96,6 +100,7 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       set => Set( ref _epicText, value );
     }
 
+    public RelayCommand GenerateApiTokenCommand { get; }
     public RelayCommand ConnectCommand { get; }
     public RelayCommand ViewIssuesCommand { get; }
     public RelayCommand ViewEpicsCommand { get; }
@@ -110,6 +115,7 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       Message = "Ready";
       VersionSummary = "(Select a version)";
 
+      GenerateApiTokenCommand = new RelayCommand( GenerateApiToken );
       ConnectCommand = new RelayCommand( Connect, CanConnect );
       ViewIssuesCommand = new RelayCommand( ViewIssues, HasSelectedVersion );
       ViewEpicsCommand = new RelayCommand( ViewEpics, HasSelectedVersion );
@@ -117,15 +123,28 @@ namespace JiraReleaseNoteExtractor.ViewModels {
       RefreshEpicsCommand = new RelayCommand( RefreshEpics, HasSelectedVersion );
       CopyCommand = new RelayCommand<string>( CopyText, CanCopyText );
 
-      _jiraBaseUrl = ConfigurationManager.AppSettings["JiraBaseUrl"];
+      var baseUrl = ConfigurationManager.AppSettings["JiraBaseUrl"];
+      _uriBuilder = new JiraUriBuilder( baseUrl );
       _releaseNoteFieldName = ConfigurationManager.AppSettings["ReleaseNoteFieldName"];
 
-      Username = Settings.Default.LastUsername;
+      Email = Settings.Default.LastEmail;
+      ApiToken = Settings.Default.LastApiToken;
+
+      _baseIconPath = Path.Combine( Path.GetTempPath(), "JiraReleaseNoteExtractor", "ProjectAvatarCache" );
+      if ( !Directory.Exists( _baseIconPath ) ) {
+        Directory.CreateDirectory( _baseIconPath );
+      }
 
       _httpClient = new HttpClient();
       _httpClient.DefaultRequestHeaders.Accept.Add( new MediaTypeWithQualityHeaderValue( "application/json" ) );
 
       PropertyChanged += OnPropertyChanged;
+    }
+
+    private void GenerateApiToken() {
+      var url = "https://id.atlassian.com/manage/api-tokens";
+
+      Process.Start( new ProcessStartInfo( url ) { UseShellExecute = true } );
     }
 
     private async void OnPropertyChanged( object sender, PropertyChangedEventArgs e ) {
@@ -164,18 +183,32 @@ namespace JiraReleaseNoteExtractor.ViewModels {
     }
 
     private async void Connect() {
-      Settings.Default.LastUsername = Username;
+      Settings.Default.LastEmail = Email;
+      Settings.Default.LastApiToken = ApiToken;
       Settings.Default.Save();
 
-      _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue( "Basic", Convert.ToBase64String( Encoding.ASCII.GetBytes( $"{Username}:{Password}" ) ) );
+      _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue( "Basic", Convert.ToBase64String( Encoding.ASCII.GetBytes( $"{Email}:{ApiToken}" ) ) );
 
+      IsConnected = false;
       IsBusy = true;
       Message = "Connecting...";
 
       var releaseNoteFieldTask = GetReleaseNoteFieldId();
       var projectsTask = GetProjects();
 
-      await Task.WhenAll( releaseNoteFieldTask, projectsTask );
+      try {
+        await Task.WhenAll( releaseNoteFieldTask, projectsTask );
+      }
+      catch ( Exception ex ) {
+        Settings.Default.LastApiToken = null;
+        Settings.Default.Save();
+
+        MessageBox.Show( ex.ToString(), "Connection Error", MessageBoxButton.OK, MessageBoxImage.Error );
+
+        IsBusy = false;
+        Message = "Error connecting!";
+        return;
+      }
 
       _releaseNoteFieldId = releaseNoteFieldTask.Result;
       Projects = projectsTask.Result;
@@ -191,7 +224,7 @@ namespace JiraReleaseNoteExtractor.ViewModels {
 
     private async Task<string> GenerateReleaseNotes() {
       var query = GetReleaseNotesJiraJql();
-      var url = $"{_jiraBaseUrl}/rest/api/2/search?jql={Uri.EscapeDataString( query )}";
+      var url = _uriBuilder.GenerateReleaseNotesQueryUrl( query );
       var response = await _httpClient.GetStringAsync( url );
       var json = JObject.Parse( response );
 
@@ -203,7 +236,8 @@ namespace JiraReleaseNoteExtractor.ViewModels {
         var releaseNote = issueJson["fields"].Value<string>( _releaseNoteFieldId );
 
         if ( string.IsNullOrWhiteSpace( releaseNote ) ) {
-          releaseNote = $"!!! NO RELEASE NOTE: {_jiraBaseUrl}/browse/{key} !!!";
+          var issueUrl = _uriBuilder.GenerateIssueUrl( key );
+          releaseNote = $"!!! NO RELEASE NOTE: {issueUrl} !!!";
         }
 
         resultsText.AppendLine( $"  * {releaseNote} [{key}]" );
@@ -214,7 +248,7 @@ namespace JiraReleaseNoteExtractor.ViewModels {
 
     private async Task<string> GenerateEpicText() {
       var query = GetEpicsJiraJql();
-      var url = $"{_jiraBaseUrl}/rest/api/2/search?jql={Uri.EscapeDataString( query )}";
+      var url = _uriBuilder.GenerateEpicQueryUrl( query );
       var response = await _httpClient.GetStringAsync( url );
       var json = JObject.Parse( response );
 
@@ -226,7 +260,8 @@ namespace JiraReleaseNoteExtractor.ViewModels {
         var releaseNote = issueJson["fields"].Value<string>( _releaseNoteFieldId );
 
         if ( string.IsNullOrWhiteSpace( releaseNote ) ) {
-          releaseNote = $"!!! NO RELEASE NOTE: {_jiraBaseUrl}/browse/{key} !!! [{key}]";
+          var issueUrl = _uriBuilder.GenerateIssueUrl( key );
+          releaseNote = $"!!! NO RELEASE NOTE: {issueUrl} !!! [{key}]";
         }
 
         resultsText.AppendLine( $"  * {releaseNote}" );
@@ -245,14 +280,14 @@ namespace JiraReleaseNoteExtractor.ViewModels {
 
     private void ViewIssues() {
       var query = GetReleaseNotesJiraJql();
-      var url = $"{_jiraBaseUrl}/issues/?jql={Uri.EscapeDataString( query )}";
+      var url = _uriBuilder.GenerateViewIssuesUrl( query );
 
       Process.Start( new ProcessStartInfo( url ) { UseShellExecute = true } );
     }
 
     private void ViewEpics() {
       var query = GetEpicsJiraJql();
-      var url = $"{_jiraBaseUrl}/issues/?jql={Uri.EscapeDataString( query )}";
+      var url = _uriBuilder.GenerateViewEpicsUrl( query );
 
       Process.Start( new ProcessStartInfo( url ) { UseShellExecute = true } );
     }
@@ -313,7 +348,7 @@ namespace JiraReleaseNoteExtractor.ViewModels {
     }
 
     private async Task<string> GetReleaseNoteFieldId() {
-      var url = $"{_jiraBaseUrl}/rest/api/2/field";
+      var url = _uriBuilder.GenerateFieldInfoUrl();
       var response = await _httpClient.GetStringAsync( url );
       var json = JArray.Parse( response );
 
@@ -328,7 +363,7 @@ namespace JiraReleaseNoteExtractor.ViewModels {
     }
 
     private async Task<ICollection<Project>> GetProjects() {
-      var url = $"{_jiraBaseUrl}/rest/api/2/project";
+      var url = _uriBuilder.GenerateGetProjectsUrl();
       var response = await _httpClient.GetStringAsync( url );
       var json = JArray.Parse( response );
 
@@ -338,15 +373,58 @@ namespace JiraReleaseNoteExtractor.ViewModels {
         var id = item.Value<string>( "id" );
         var key = item.Value<string>( "key" );
         var name = item.Value<string>( "name" );
+        var iconUrl = item.Value<JObject>( "avatarUrls" ).Value<string>( "48x48" );
+        var iconPath = Path.Combine( _baseIconPath, $"{key}.png" );
 
-        projects.Add( new Project( id, key, name ) );
+        Task.Run( () => DownloadProjectIcon( iconUrl, iconPath ) );
+
+        projects.Add( new Project( id, key, name, iconPath ) );
       }
 
       return projects;
     }
 
+    private async void DownloadProjectIcon( string iconUrl, string iconPath ) {
+      if ( File.Exists( iconPath ) ) {
+        return;
+      }
+
+      var response = await _httpClient.GetAsync( iconUrl );
+      if ( !response.IsSuccessStatusCode ) {
+        return;
+      }
+
+      var contentType = response.Content.Headers.ContentType;
+
+      if ( contentType.MediaType == "image/svg+xml" ) {
+        var svgPath = Path.ChangeExtension( iconPath, ".svg" );
+
+        if ( File.Exists( svgPath ) ) {
+          File.Delete( svgPath );
+        }
+
+        using ( var file = File.OpenWrite( svgPath ) ) {
+          var stream = await response.Content.ReadAsStreamAsync();
+          await stream.CopyToAsync( file );
+        }
+
+        // Convert SVG to PNG
+        var svgDocument = SvgDocument.Open( svgPath );
+        svgDocument.ShapeRendering = SvgShapeRendering.Auto;
+
+        var bmp = svgDocument.Draw( 48, 48 );
+        bmp.Save( iconPath, ImageFormat.Png );
+      }
+      else {
+        using ( var file = File.OpenWrite( iconPath ) ) {
+          var stream = await response.Content.ReadAsStreamAsync();
+          await stream.CopyToAsync( file );
+        }
+      }
+    }
+
     private async Task<ICollection<ProjectVersion>> GetVersions( string projectId ) {
-      var url = $"{_jiraBaseUrl}/rest/api/2/project/{projectId}/versions";
+      var url = _uriBuilder.GenerateGetVersionsUrl( projectId );
       var response = await _httpClient.GetStringAsync( url );
       var json = JArray.Parse( response );
 
@@ -368,7 +446,7 @@ namespace JiraReleaseNoteExtractor.ViewModels {
     }
 
     private async Task<string> GetVersionSummary() {
-      var url = $"{_jiraBaseUrl}/rest/api/2/version/{SelectedVersion}/unresolvedIssueCount";
+      var url = _uriBuilder.GenerateUnresolvedIssueCountUrl( SelectedVersion );
 
       var response = await _httpClient.GetStringAsync( url );
       var json = JObject.Parse( response );
@@ -380,7 +458,7 @@ namespace JiraReleaseNoteExtractor.ViewModels {
     }
 
     private bool CanConnect() {
-      return !string.IsNullOrWhiteSpace( Username ) && !string.IsNullOrEmpty( Password );
+      return !string.IsNullOrWhiteSpace( Email ) && !string.IsNullOrEmpty( ApiToken );
     }
 
     private bool HasSelectedVersion() {
