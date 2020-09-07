@@ -264,7 +264,7 @@ namespace JiraReleaseNoteExtractor.ViewModels {
 
         switch ( type ) {
           case "Epic":
-            epicText.AppendLine( $"  * {releaseNote} [{key}]" );
+            epicText.AppendLine( $"  * {releaseNote}" );
             break;
           case "Story":
             storyText.AppendLine( $"  * {releaseNote} [{key}]" );
